@@ -1,10 +1,17 @@
 package tc.you.example;
 
-import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 
 import javax.servlet.ServletException;
@@ -16,55 +23,69 @@ import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.fileupload.FileUploadException;
 import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
-import org.apache.commons.io.FilenameUtils;
 
 public class UploadServlet extends HttpServlet {
-  private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 1L;
   
-  private Path tempDir;
-  
-  @Override
-  public void init() throws ServletException {
-    try {
-      tempDir = Files.createTempDirectory("tempFiles");
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
-  }
-
-  @Override
-  protected void doPost(HttpServletRequest req, HttpServletResponse resp)
-      throws ServletException, IOException {
-    try {
-      @SuppressWarnings("unchecked")
-      List<FileItem> items = new ServletFileUpload(new DiskFileItemFactory()).parseRequest(req);
-      for (FileItem item : items) {
-          if (item.isFormField()) {
-              // Process regular form field (input type="text|radio|checkbox|etc", select, etc).
-              String fieldname = item.getFieldName();
-              String fieldvalue = item.getString();
-              // ... (do your job here)
-          } else {
-              // Process form file field (input type="file").
-              String fieldname = item.getFieldName();
-              Path outputPath = tempDir.resolve(fieldname);
-              File outFile = outputPath.toFile();
-              try {
-                item.write(outFile);
-              } catch (Exception e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-              }
-              resp.setContentType("application/json");
-              PrintWriter pw = resp.getWriter();
-              pw.write("{\"success\": 1}");
-          }
+    private ServletFileUpload uploadHelper;
+    private Path tempDir;
+    
+    @Override
+    public void init() throws ServletException {
+      try {
+          Path dataDir = Paths.get("/data");
+          tempDir = Files.createTempDirectory(dataDir, "tempFiles");
+          DiskFileItemFactory factory = new DiskFileItemFactory();
+          factory.setRepository(tempDir.toFile());
+          uploadHelper = new ServletFileUpload(new DiskFileItemFactory());
+      } catch (IOException e) {
+        e.printStackTrace();
       }
-  } catch (FileUploadException e) {
-      throw new ServletException("Cannot parse multipart request.", e);
-  }
-  }
-  
-  
+    }
 
+    @Override
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) 
+            throws ServletException, IOException {
+        try {
+            @SuppressWarnings("unchecked")
+            List<FileItem> items = uploadHelper.parseRequest(req);
+            for (FileItem item : items) {
+                // We only expect the file
+                if (item.isFormField()) {
+                    continue;
+                }
+              
+                // Process form file field (input type="file").
+                String fieldname = item.getFieldName();
+                InputStream strm = item.getInputStream();
+                OutputStream outStrm = new FileOutputStream(tempDir.resolve(fieldname).toString());
+                fastChannelCopy(Channels.newChannel(strm), Channels.newChannel(outStrm));
+            }
+            // Return success
+            resp.setContentType("application/json");
+            PrintWriter pw = resp.getWriter();
+            pw.write("{\"success\": 1}");
+        } catch (FileUploadException e) {
+            throw new ServletException("Cannot parse multipart request.", e);
+        }
+    }
+  
+  private static void fastChannelCopy(final ReadableByteChannel src, final WritableByteChannel dest) throws IOException {
+      final ByteBuffer buffer = ByteBuffer.allocateDirect(16 * 1024);
+      while (src.read(buffer) != -1) {
+        // prepare the buffer to be drained
+        buffer.flip();
+        // write to the channel, may block
+        dest.write(buffer);
+        // If partial transfer, shift remainder down
+        // If buffer is empty, same as doing clear()
+        buffer.compact();
+      }
+      // EOF will leave buffer in fill state
+      buffer.flip();
+      // make sure the buffer is fully drained.
+      while (buffer.hasRemaining()) {
+        dest.write(buffer);
+      }
+    }
 }
