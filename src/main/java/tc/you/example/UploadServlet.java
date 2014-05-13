@@ -12,14 +12,14 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.apache.commons.fileupload.FileItem;
+import org.apache.commons.fileupload.FileItemIterator;
+import org.apache.commons.fileupload.FileItemStream;
 import org.apache.commons.fileupload.FileUploadException;
 import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
@@ -33,7 +33,7 @@ public class UploadServlet extends HttpServlet {
     @Override
     public void init() throws ServletException {
       try {
-          Path dataDir = Paths.get("/data");
+          Path dataDir = Paths.get("/data/pdsEnv");
           tempDir = Files.createTempDirectory(dataDir, "tempFiles");
           DiskFileItemFactory factory = new DiskFileItemFactory();
           factory.setRepository(tempDir.toFile());
@@ -47,20 +47,21 @@ public class UploadServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) 
             throws ServletException, IOException {
         try {
-            @SuppressWarnings("unchecked")
-            List<FileItem> items = uploadHelper.parseRequest(req);
-            for (FileItem item : items) {
+            // Parse the request
+            FileItemIterator iter = uploadHelper.getItemIterator(req);
+            while (iter.hasNext()) {
                 // We only expect the file
+                FileItemStream item = iter.next();
                 if (item.isFormField()) {
                     continue;
                 }
-              
-                // Process form file field (input type="file").
-                String fieldname = item.getFieldName();
-                InputStream strm = item.getInputStream();
-                OutputStream outStrm = new FileOutputStream(tempDir.resolve(fieldname).toString());
-                fastChannelCopy(Channels.newChannel(strm), Channels.newChannel(outStrm));
+
+                String name = item.getFieldName();
+                InputStream inStrm = item.openStream();
+                OutputStream outStrm = new FileOutputStream(tempDir.resolve(name).toString());
+                fastChannelCopy(Channels.newChannel(inStrm), Channels.newChannel(outStrm));
             }
+
             // Return success
             resp.setContentType("application/json");
             PrintWriter pw = resp.getWriter();
