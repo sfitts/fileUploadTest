@@ -7,4 +7,22 @@
         <servlet-name>fileupload</servlet-name>
         <url-pattern>/funf_connector/set_funf_data</url-pattern>
     </servlet-mapping>
+
+    <servlet>
+        <servlet-name>ping</servlet-name>
+        <servlet-class>tc.you.example.NoopServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>ping</servlet-name>
+        <url-pattern>/ping</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>decrypt</servlet-name>
+        <servlet-class>tc.you.example.DecryptionServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>decrypt</servlet-name>
+        <url-pattern>/decrypt</url-pattern>
+    </servlet-mapping>
 </web-app>

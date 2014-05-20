@@ -39,7 +39,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 			if part.FileName() == "" {
 				continue
 			}
-			dst, err := os.Create("/tmp/" + part.FormName())
+			dst, err := os.Create("/tmp/pdsEnv/" + part.FormName())
 			defer dst.Close()
 
 			if err != nil {
